@@ -1,0 +1,8 @@
+{
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}/build/windows-msvc",
+    "--header-insertion=never"
+  ],
+  "cmake.configureOnOpen": true
+}
