@@ -66,6 +66,31 @@ int main()
     }
     std::printf("Window surface created\n");
 
+    VkPhysicalDeviceVulkan13Features features13{};
+    features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    features13.dynamicRendering = VK_TRUE;
+    features13.synchronization2 = VK_TRUE;
+
+    vkb::PhysicalDeviceSelector selector(instance);
+    auto physicalDeviceResult = selector
+        .set_minimum_version(1, 3)
+        .set_required_features_13(features13)
+        .set_surface(surface)
+        .prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
+        .select();
+    
+    if (!physicalDeviceResult) {
+        std::fprintf(stderr, "Failed to select GPU: %s\n", physicalDeviceResult.error().message().c_str());
+        vkb::destroy_surface(instance, surface);
+        glfwDestroyWindow(window);
+        vkb::destroy_instance(instance);
+        glfwTerminate();
+        return EXIT_FAILURE;
+    }
+
+    vkb :: PhysicalDevice physicalDevice = physicalDeviceResult.value();
+    std::printf("Selected GPU: %s\n",physicalDevice.name.c_str());
+    
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
     }
