@@ -10,3 +10,4 @@
 ## Log
 
 ### 2026-10-19 — creating project setup
+

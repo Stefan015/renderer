@@ -9,6 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
+find_package(vk-bootstrap CONFIG REQUIRED)
 
 add_executable(renderer
     src/main.cpp
@@ -18,4 +19,5 @@ target_link_libraries(renderer PRIVATE
     glfw
     glm::glm
     Vulkan::Vulkan
+    vk-bootstrap::vk-bootstrap
 )

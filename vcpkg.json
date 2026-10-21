@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "dependencies": [
     "glfw3",
-    "glm"
+    "glm",
+    "vk-bootstrap"
   ],
   "builtin-baseline": "802d61d714db2714e3fefcfc59447431166b8367"
 }
