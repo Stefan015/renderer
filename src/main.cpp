@@ -90,11 +90,43 @@ int main()
 
     vkb :: PhysicalDevice physicalDevice = physicalDeviceResult.value();
     std::printf("Selected GPU: %s\n",physicalDevice.name.c_str());
+
+    vkb::DeviceBuilder deviceBuilder{physicalDevice};
+    auto deviceResult = deviceBuilder.build();
+    if (!deviceResult) {
+        std::fprintf(stderr, "Failed to create logical device: %s\n",
+                    deviceResult.error().message().c_str());
+        vkb::destroy_surface(instance, surface);
+        glfwDestroyWindow(window);
+        vkb::destroy_instance(instance);
+        glfwTerminate();
+        return EXIT_FAILURE;
+    }
+    
+    vkb::Device device = deviceResult.value();
+    std::printf("Logical device created\n");
+
+    auto queueResult = device.get_queue(vkb::QueueType::graphics);
+    auto queueFamilyResult = device.get_queue_index(vkb::QueueType::graphics);
+    if (!queueResult || !queueFamilyResult) {
+        std::fprintf(stderr, "Failed to get graphics queue\n");
+        vkb::destroy_device(device);
+        vkb::destroy_surface(instance, surface);
+        glfwDestroyWindow(window);
+        vkb::destroy_instance(instance);
+        glfwTerminate();
+        return EXIT_FAILURE;
+    }
+
+    VkQueue graphicsQueue = queueResult.value();
+    std::uint32_t graphicsQueueFamily = queueFamilyResult.value();
+    std::printf("Graphics queue family: %u\n", graphicsQueueFamily);
     
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
     }
 
+    vkb::destroy_device(device);
     vkb::destroy_surface(instance, surface);
     glfwDestroyWindow(window);
     vkb::destroy_instance(instance);
