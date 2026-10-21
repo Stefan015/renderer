@@ -7,8 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 
-bool Renderer::init()
-{
+bool Renderer::init(){
     if (!initWindow()) {
         return false;
     }
@@ -23,18 +22,21 @@ bool Renderer::init()
     if (!createSwapchain(static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height))) {
         return false;
     }
+
+    if (!initFrames()) {
+        return false;
+    }
+
     return true;
 }
 
-void Renderer::run()
-{
+void Renderer::run(){
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
     }
 }
 
-bool Renderer::initWindow()
-{
+bool Renderer::initWindow(){
     if (!glfwInit()) {
         std::fprintf(stderr, "Failed to initialize GLFW\n");
         return false;
@@ -58,8 +60,7 @@ bool Renderer::initWindow()
     return true;
 }
 
-bool Renderer::initVulkan()
-{
+bool Renderer::initVulkan(){
     std::uint32_t extensionCount = 0;
     const char** extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
 
@@ -175,6 +176,17 @@ bool Renderer::createSwapchain(std::uint32_t width, std::uint32_t height){
         return false;
     }
     swapchainImageViews = viewsResult.value();
+    
+    renderFinishedSemaphores.resize(swapchainImages.size(), VK_NULL_HANDLE);
+    VkSemaphoreCreateInfo semaphoreInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+    for (VkSemaphore& semaphore : renderFinishedSemaphores) {
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphore) != VK_SUCCESS) {
+            std::fprintf(stderr, "Failed to create render finished semaphore\n");
+            return false;
+        }
+    }
 
     std::printf("Swapchain created: %zu images, %ux%u\n",
                 swapchainImages.size(), swapchainExtent.width, swapchainExtent.height);
@@ -182,8 +194,12 @@ bool Renderer::createSwapchain(std::uint32_t width, std::uint32_t height){
 
 
 }
-void Renderer::destroySwapchain()
-{
+void Renderer::destroySwapchain(){
+    for (VkSemaphore semaphore : renderFinishedSemaphores) {
+        vkDestroySemaphore(device, semaphore, nullptr);
+    }
+    renderFinishedSemaphores.clear();
+
     for (VkImageView view : swapchainImageViews) {
         vkDestroyImageView(device, view, nullptr);
     }
@@ -196,9 +212,66 @@ void Renderer::destroySwapchain()
     }
 }
 
+bool Renderer:: initFrames(){
+    VkCommandPoolCreateInfo poolInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = graphicsQueueFamily
+    };
+
+    VkFenceCreateInfo fenceInfo{
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT
+    };
+
+    VkSemaphoreCreateInfo semaphoreInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+    };
+
+    for(FrameData& frame : frames){
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &frame.commandPool) != VK_SUCCESS) {
+            std::fprintf(stderr, "Failed to create command pool\n");
+            return false;
+        }
+
+        VkCommandBufferAllocateInfo allocInfo{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = frame.commandPool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1
+        };
+
+        if (vkAllocateCommandBuffers(device, &allocInfo, &frame.commandBuffer) != VK_SUCCESS) {
+            std::fprintf(stderr, "Failed to allocate command buffer\n");
+            return false;
+        }
+
+        if (vkCreateFence(device, &fenceInfo, nullptr, &frame.renderFence) != VK_SUCCESS) {
+            std::fprintf(stderr, "Failed to create fence\n");
+            return false;
+        }
+
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) != VK_SUCCESS) {
+            std::fprintf(stderr, "Failed to create semaphore\n");
+            return false;
+        }
+    }
+    std::printf("Frame Resources created\n");
+    return true;
+}
+void Renderer::destroyFrames(){
+        for (FrameData& frame : frames) {
+        vkDestroySemaphore(device, frame.imageAvailableSemaphore, nullptr);
+        vkDestroyFence(device, frame.renderFence, nullptr);
+        vkDestroyCommandPool(device, frame.commandPool, nullptr);
+        frame = FrameData{};
+    }
+}
+
 Renderer::~Renderer(){
     if (device != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(device);
+        destroyFrames();
         destroySwapchain();
         vkDestroyDevice(device, nullptr);
     }
