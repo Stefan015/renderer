@@ -4,8 +4,40 @@
 #include <GLFW/glfw3.h>
 #include <VkBootstrap.h>
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
+
+static void transitionImage(VkCommandBuffer cmd, VkImage image,
+                            VkImageLayout oldLayout, VkImageLayout newLayout){
+    VkImageMemoryBarrier2 barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+        .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+        .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+        .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
+        .oldLayout = oldLayout,
+        .newLayout = newLayout,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = VK_REMAINING_MIP_LEVELS,
+            .baseArrayLayer = 0,
+            .layerCount = VK_REMAINING_ARRAY_LAYERS,
+        },
+    };
+
+    VkDependencyInfo dependencyInfo{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &barrier,
+    };
+
+    vkCmdPipelineBarrier2(cmd, &dependencyInfo);
+}
 
 bool Renderer::init(){
     if (!initWindow()) {
@@ -33,7 +65,92 @@ bool Renderer::init(){
 void Renderer::run(){
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        drawFrame();
     }
+}
+void Renderer::drawFrame()
+{
+    FrameData& frame = frames[frameNumber % FRAMES_IN_FLIGHT];
+
+    vkWaitForFences(device, 1, &frame.renderFence, VK_TRUE, UINT64_MAX);
+
+    std::uint32_t imageIndex = 0;
+    VkResult acquireResult = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX,
+                                                   frame.imageAvailableSemaphore,
+                                                   VK_NULL_HANDLE, &imageIndex);
+    if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+        return;
+    }
+
+    vkResetFences(device, 1, &frame.renderFence);
+
+    VkCommandBuffer cmd = frame.commandBuffer;
+    vkResetCommandBuffer(cmd, 0);
+
+    VkCommandBufferBeginInfo beginInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    VkImage image = swapchainImages[imageIndex];
+
+    transitionImage(cmd, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    float blue = std::abs(std::sin(static_cast<float>(frameNumber) / 120.0f));
+    VkClearColorValue clearColor{
+        .float32 = {0.0f, 0.0f, blue, 1.0f},
+    };
+    VkImageSubresourceRange clearRange{
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+    };
+    vkCmdClearColorImage(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         &clearColor, 1, &clearRange);
+
+    transitionImage(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+    vkEndCommandBuffer(cmd);
+
+    VkCommandBufferSubmitInfo commandBufferInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+        .commandBuffer = cmd,
+    };
+    VkSemaphoreSubmitInfo waitInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = frame.imageAvailableSemaphore,
+        .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+    };
+    VkSemaphoreSubmitInfo signalInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = renderFinishedSemaphores[imageIndex],
+        .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+    };
+    VkSubmitInfo2 submitInfo{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .waitSemaphoreInfoCount = 1,
+        .pWaitSemaphoreInfos = &waitInfo,
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = &commandBufferInfo,
+        .signalSemaphoreInfoCount = 1,
+        .pSignalSemaphoreInfos = &signalInfo,
+    };
+    vkQueueSubmit2(graphicsQueue, 1, &submitInfo, frame.renderFence);
+
+    VkPresentInfoKHR presentInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &renderFinishedSemaphores[imageIndex],
+        .swapchainCount = 1,
+        .pSwapchains = &swapchain,
+        .pImageIndices = &imageIndex,
+    };
+    vkQueuePresentKHR(graphicsQueue, &presentInfo);
+
+    ++frameNumber;
 }
 
 bool Renderer::initWindow(){

@@ -36,6 +36,7 @@ private:
     void destroySwapchain();
     bool initFrames();
     void destroyFrames();
+    void drawFrame();
 
 
     bool glfwInitialized = false;
