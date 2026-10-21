@@ -1,3 +1,4 @@
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <VkBootstrap.h>
 
@@ -54,10 +55,22 @@ int main()
         return EXIT_FAILURE;
     }
 
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
+    VkResult surfaceResult = glfwCreateWindowSurface(instance.instance, window, nullptr, &surface);
+    if (surfaceResult != VK_SUCCESS) {
+        std::fprintf(stderr, "Failed to create window surface (VkResult: %d)\n", static_cast<int>(surfaceResult));
+        glfwDestroyWindow(window);
+        vkb::destroy_instance(instance);
+        glfwTerminate();
+        return EXIT_FAILURE;
+    }
+    std::printf("Window surface created\n");
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
     }
 
+    vkb::destroy_surface(instance, surface);
     glfwDestroyWindow(window);
     vkb::destroy_instance(instance);
     glfwTerminate();
