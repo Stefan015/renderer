@@ -15,6 +15,14 @@ bool Renderer::init()
     if (!initVulkan()) {
         return false;
     }
+
+    int width = 0;
+    int height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+
+    if (!createSwapchain(static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height))) {
+        return false;
+    }
     return true;
 }
 
@@ -129,10 +137,69 @@ bool Renderer::initVulkan()
 
     return true;
 }
-Renderer::~Renderer()
+
+bool Renderer::createSwapchain(std::uint32_t width, std::uint32_t height){
+    vkb::SwapchainBuilder swapChainBuidler{physicalDevice,device,surface};
+
+    auto swapChainResult = swapChainBuidler
+        .set_desired_format(VkSurfaceFormatKHR{
+            .format = VK_FORMAT_B8G8R8A8_UNORM,
+            .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+        })
+        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+        .set_desired_extent(width,height)
+        .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+        .build();
+    if(!swapChainResult){
+        std::fprintf(stderr, "Failed to create swapchain: %s\n",
+            swapChainResult.error().message().c_str());
+        return false;
+    }
+    vkb::Swapchain vkbSwapchain = swapChainResult.value();
+    swapchain = vkbSwapchain.swapchain;
+    swapchainImageFormat = vkbSwapchain.image_format;
+    swapchainExtent = vkbSwapchain.extent;
+
+    auto imagesResult = vkbSwapchain.get_images();
+    if (!imagesResult) {
+        std::fprintf(stderr, "Failed to get swapchain images: %s\n",
+                     imagesResult.error().message().c_str());
+        return false;
+    }
+        swapchainImages = imagesResult.value();
+
+    auto viewsResult = vkbSwapchain.get_image_views();
+    if (!viewsResult) {
+        std::fprintf(stderr, "Failed to create swapchain image views: %s\n",
+                     viewsResult.error().message().c_str());
+        return false;
+    }
+    swapchainImageViews = viewsResult.value();
+
+    std::printf("Swapchain created: %zu images, %ux%u\n",
+                swapchainImages.size(), swapchainExtent.width, swapchainExtent.height);
+    return true;
+
+
+}
+void Renderer::destroySwapchain()
 {
+    for (VkImageView view : swapchainImageViews) {
+        vkDestroyImageView(device, view, nullptr);
+    }
+    swapchainImageViews.clear();
+    swapchainImages.clear();
+
+    if (swapchain != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(device, swapchain, nullptr);
+        swapchain = VK_NULL_HANDLE;
+    }
+}
+
+Renderer::~Renderer(){
     if (device != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(device);
+        destroySwapchain();
         vkDestroyDevice(device, nullptr);
     }
     if (surface != VK_NULL_HANDLE) {
