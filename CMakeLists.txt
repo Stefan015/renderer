@@ -13,6 +13,7 @@ find_package(vk-bootstrap CONFIG REQUIRED)
 
 add_executable(renderer
     src/main.cpp
+    src/renderer.cpp
 )
 
 target_link_libraries(renderer PRIVATE
