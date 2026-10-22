@@ -37,6 +37,8 @@ private:
     bool initFrames();
     void destroyFrames();
     void drawFrame();
+    void recreateSwapchain();
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
 
     bool glfwInitialized = false;
@@ -58,5 +60,5 @@ private:
 
     std::array<FrameData,FRAMES_IN_FLIGHT> frames{};
     std::uint64_t frameNumber = 0; 
-
+    bool framebufferResized = false;
 };

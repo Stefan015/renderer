@@ -2,18 +2,26 @@
 
 ## Current status
 
-- Milestone: Vulkan initialization and clearing the screen (in progress)
-- Working: full Vulkan setup (instance, surface, GPU, device, swapchain), per-frame command buffers and sync objects, frame loop clears the swapchain image to a pulsing blue; no validation errors
+- Milestone: Triangle (not started)
+- Working: Vulkan setup, swapchain, frame loop clearing to a pulsing blue, swapchain recreation on resize, minimized window handling; no validation errors
 - Known issues:
-  - Resizing the window freezes the image (acquire returns `VK_ERROR_OUT_OF_DATE_KHR` and the frame is skipped; swapchain is not recreated yet)
-  - Minimizing the window is not handled (framebuffer size becomes 0)
-- Next: recreate the swapchain on resize, handle minimized window
+  - Image freezes while dragging the window edge: the Windows modal loop blocks `glfwPollEvents`, so no frames are drawn until release. Possible fix later: draw from `glfwSetWindowRefreshCallback`
+  - On this machine the loader prints two warnings about implicit layers (Epic overlay duplicate, old AMD switchable graphics layer); not caused by the project
+- Next: shaders and the graphics pipeline for drawing a triangle
 
 ## Open questions
 
 - How to choose precise stage and access masks for barriers instead of `ALL_COMMANDS`
 
 ## Log
+
+### 2026-10-22 — Resizing, minimizing (milestone done)
+
+- Swapchain is recreated when acquire or present return `VK_ERROR_OUT_OF_DATE_KHR` / `VK_SUBOPTIMAL_KHR`, or when GLFW's framebuffer size callback fires (drivers aren't required to report resizes through Vulkan)
+- Recreate: wait while framebuffer size is 0 (minimized) using `glfwWaitEvents`, so no CPU is used; check `glfwWindowShouldClose` in that loop so closing while minimized works; `vkDeviceWaitIdle`; destroy and create the swapchain
+- At acquire only `OUT_OF_DATE` skips the frame: `SUBOPTIMAL` still signals the image available semaphore, so the frame must continue to consume it
+- GLFW callback is a `static` member function (C libraries can't call member functions); the `Renderer` is found through `glfwSetWindowUserPointer` / `glfwGetWindowUserPointer`
+- Learned how semaphores and fences work underneath: the GPU writes a value to memory when work completes; binary semaphores are signaled/unsignaled and each signal is consumed by one wait; timeline semaphores (Vulkan 1.2) expose the counter directly
 
 ### 2026-10-22 — Swapchain and frame loop
 

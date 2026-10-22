@@ -1,13 +1,17 @@
 # Renderer
 
-A real-time renderer made in c++ and Vulkan as a learning project.
+A real-time renderer made in C++ and Vulkan as a learning project.
 
 
 ## Status
 
-Starting the project: window and project setup done, starting with Vulkan
+Vulkan initialization done: the renderer creates a swapchain and clears it every frame, with window resizing and minimizing handled. Next: drawing a triangle.
 
 ## Features
+
+- Vulkan 1.3 setup with validation layers (via vk-bootstrap)
+- Swapchain with frames in flight and proper CPU/GPU synchronization
+- Swapchain recreation on window resize, minimize handling
 
 ## Building
 
@@ -21,16 +25,16 @@ Starting the project: window and project setup done, starting with Vulkan
 
 ### Steps
 
-1. Clone the repo
-2. Open it in VS Code, get the @recommended extensions
-3. Select the preset (Ctrl+shift+p), it should be CMake:Select Configure preset and pick Windows MSVC (Ninja)
-4. Then build (f7) and the build will appear in \build\windows-msvc\ (the first build might take a few minutes)
-5. Run it in vscode (CMake:Run Without Debugging (shift + f5)) or by running the build\windows-msvc\renderer.exe
+1. Clone the repository: git clone https://github.com/Stefan015/renderer.git
+2. Open the folder in VS Code and install the recommended extensions (search `@recommended` in the Extensions panel).
+3. Run **CMake: Select Configure Preset** from the command palette (`Ctrl+Shift+P`) and choose **Windows MSVC (Ninja, Debug)**. The first configure takes a few minutes, because vcpkg downloads and builds the dependencies.
+4. Build with **CMake: Build** (`F7`). The executable is written to `build/windows-msvc/`.
+5. Run it with **CMake: Run Without Debugging** (`Shift+F5`), or start `build/windows-msvc/renderer.exe` directly.
 
 ## Roadmap
 
 - [x] Project setup and window
-- [ ] Vulkan initialization and clearing the screen
+- [x] Vulkan initialization and clearing the screen
 - [ ] Triangle
 - [ ] Camera, model loading, textures
 - [ ] Lighting and PBR

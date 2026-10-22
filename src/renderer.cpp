@@ -79,6 +79,7 @@ void Renderer::drawFrame()
                                                    frame.imageAvailableSemaphore,
                                                    VK_NULL_HANDLE, &imageIndex);
     if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreateSwapchain();
         return;
     }
 
@@ -150,7 +151,14 @@ void Renderer::drawFrame()
     };
     vkQueuePresentKHR(graphicsQueue, &presentInfo);
 
+    VkResult presentResult = vkQueuePresentKHR(graphicsQueue, &presentInfo);
+
     ++frameNumber;
+
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || framebufferResized) {
+        framebufferResized = false;
+        recreateSwapchain();
+    }
 }
 
 bool Renderer::initWindow(){
@@ -169,12 +177,21 @@ bool Renderer::initWindow(){
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
     window = glfwCreateWindow(1280, 720, "Renderer", nullptr, nullptr);
+
+    glfwSetWindowUserPointer(window, this);
+    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+
     if (!window) {
         std::fprintf(stderr, "Failed to create window\n");
         return false;
     }
 
     return true;
+}
+void Renderer::framebufferResizeCallback(GLFWwindow* window, int, int)
+{
+    auto* renderer = static_cast<Renderer*>(glfwGetWindowUserPointer(window));
+    renderer->framebufferResized = true;
 }
 
 bool Renderer::initVulkan(){
@@ -326,6 +343,25 @@ void Renderer::destroySwapchain(){
     if (swapchain != VK_NULL_HANDLE) {
         vkDestroySwapchainKHR(device, swapchain, nullptr);
         swapchain = VK_NULL_HANDLE;
+    }
+}
+void Renderer::recreateSwapchain(){
+    int width = 0;
+    int height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+    while (width == 0 || height == 0) {
+        if (glfwWindowShouldClose(window)) {
+            return;
+        }
+        glfwWaitEvents();
+        glfwGetFramebufferSize(window, &width, &height);
+    }
+
+    vkDeviceWaitIdle(device);
+    destroySwapchain();
+    if (!createSwapchain(static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height))) {
+        std::fprintf(stderr, "Failed to recreate swapchain\n");
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
     }
 }
 
