@@ -149,7 +149,6 @@ void Renderer::drawFrame()
         .pSwapchains = &swapchain,
         .pImageIndices = &imageIndex,
     };
-    vkQueuePresentKHR(graphicsQueue, &presentInfo);
 
     VkResult presentResult = vkQueuePresentKHR(graphicsQueue, &presentInfo);
 
