@@ -39,6 +39,7 @@ private:
     void drawFrame();
     void recreateSwapchain();
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+    bool initPipeline();
 
 
     bool glfwInitialized = false;

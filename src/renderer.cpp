@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
+#include <string>
 
 static void transitionImage(VkCommandBuffer cmd, VkImage image,
                             VkImageLayout oldLayout, VkImageLayout newLayout){
@@ -39,6 +41,38 @@ static void transitionImage(VkCommandBuffer cmd, VkImage image,
     vkCmdPipelineBarrier2(cmd, &dependencyInfo);
 }
 
+static bool loadShaderModule(VkDevice device, const char* fileName, VkShaderModule& outModule){
+    std::string path = std::string(SHADER_DIR) + "/" + fileName;
+
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        std::fprintf(stderr, "Failed to open shader file: %s\n", path.c_str());
+        return false;
+    }
+
+    std::size_t fileSize = static_cast<std::size_t>(file.tellg());
+    if (fileSize == 0 || fileSize % sizeof(std::uint32_t) != 0) {
+        std::fprintf(stderr, "Invalid SPIR-V file size: %s\n", path.c_str());
+        return false;
+    }
+
+    std::vector<std::uint32_t> code(fileSize / sizeof(std::uint32_t));
+    file.seekg(0);
+    file.read(reinterpret_cast<char*>(code.data()), static_cast<std::streamsize>(fileSize));
+
+    VkShaderModuleCreateInfo createInfo{
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = fileSize,
+        .pCode = code.data(),
+    };
+    if (vkCreateShaderModule(device, &createInfo, nullptr, &outModule) != VK_SUCCESS) {
+        std::fprintf(stderr, "Failed to create shader module: %s\n", path.c_str());
+        return false;
+    }
+
+    return true;
+}
+
 bool Renderer::init(){
     if (!initWindow()) {
         return false;
@@ -56,6 +90,9 @@ bool Renderer::init(){
     }
 
     if (!initFrames()) {
+        return false;
+    }
+    if (!initPipeline()) {
         return false;
     }
 
@@ -418,6 +455,25 @@ void Renderer::destroyFrames(){
         vkDestroyCommandPool(device, frame.commandPool, nullptr);
         frame = FrameData{};
     }
+}
+
+bool Renderer::initPipeline()
+{
+    VkShaderModule vertShader = VK_NULL_HANDLE;
+    VkShaderModule fragShader = VK_NULL_HANDLE;
+
+    if (!loadShaderModule(device, "triangle.vert.spv", vertShader)) {
+        return false;
+    }
+    if (!loadShaderModule(device, "triangle.frag.spv", fragShader)) {
+        vkDestroyShaderModule(device, vertShader, nullptr);
+        return false;
+    }
+    std::printf("Shader modules loaded\n");
+
+    vkDestroyShaderModule(device, fragShader, nullptr);
+    vkDestroyShaderModule(device, vertShader, nullptr);
+    return true;
 }
 
 Renderer::~Renderer(){
