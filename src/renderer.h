@@ -62,4 +62,6 @@ private:
     std::array<FrameData,FRAMES_IN_FLIGHT> frames{};
     std::uint64_t frameNumber = 0; 
     bool framebufferResized = false;
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline trianglePipeline = VK_NULL_HANDLE;
 };
